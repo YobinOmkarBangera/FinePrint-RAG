@@ -221,3 +221,7 @@ __marimo__/
 
 # experimental
 experiments/
+
+# Data
+data/raw_pdfs/
+data/processed/
