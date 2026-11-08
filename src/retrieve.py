@@ -59,6 +59,14 @@ class Retriever:
         top_ids = sorted(fused, key=fused.get, reverse=True)[:k]
         return [self.by_id[i] for i in top_ids]
 
+    def search_each_plan(self, question, k=3):
+        """Return the k best chunks from EVERY policy, grouped policy by policy.
+
+        Used for "All policies": the same question usually has a different answer
+        in each policy, so each one gets its own clauses instead of competing.
+        """
+        return [chunk for plan in self.plans for chunk in self.search(question, k=k, plan=plan)]
+
 
 if __name__ == "__main__":
     question = " ".join(sys.argv[1:]) or "What is the waiting period for pre-existing diseases?"

@@ -50,19 +50,19 @@ def main(k=5):
         raise SystemExit(f"No questions with an expected_page in {EVAL_FILE.name}")
 
     hits_filtered = hits_all = 0
-    print(f"{'plan filter':<12}{'all plans':<11}question")
+    print(f"{'one policy':<12}{'compare':<11}question")
     for question, plan, expected in answerable:
-        # 1. Like the app with a policy picked in the sidebar
+        # 1. Like the app with one policy picked in the sidebar: top k from that policy
         filtered = is_hit(retriever.search(question, k=k, plan=plan), plan, expected)
-        # 2. Like the app on "All policies": must also pick the right policy
-        everywhere = is_hit(retriever.search(question, k=k), plan, expected)
+        # 2. Like the app on "All policies (compare)": top 3 from every policy
+        everywhere = is_hit(retriever.search_each_plan(question, k=3), plan, expected)
         hits_filtered += filtered
         hits_all += everywhere
         print(f"{'HIT' if filtered else 'MISS':<12}{'HIT' if everywhere else 'MISS':<11}[{plan}] {question}")
 
     n = len(answerable)
-    print(f"\nHit rate @{k}, searching only the question's policy: {hits_filtered}/{n} = {hits_filtered / n:.0%}")
-    print(f"Hit rate @{k}, searching all policies:              {hits_all}/{n} = {hits_all / n:.0%}")
+    print(f"\nOne policy  (top {k} from the chosen policy):  {hits_filtered}/{n} = {hits_filtered / n:.0%}")
+    print(f"Compare mode (top 3 from each policy):        {hits_all}/{n} = {hits_all / n:.0%}")
     skipped = len(questions) - n
     if skipped:
         print(f"({skipped} questions with no expected page were skipped; use them to test answer.py)")

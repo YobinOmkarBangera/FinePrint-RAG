@@ -6,10 +6,10 @@ import pymupdf
 import streamlit as st
 
 from answer import NOT_COVERED, clean_citations, stream_answer
-from retrieve import PROJECT_DIR, Retriever
+from retrieve import PROJECT_DIR, QUERY_PREFIX, Retriever
 
 RAW_DIR = PROJECT_DIR / "data" / "raw_pdfs"
-ALL_POLICIES = "All policies"
+ALL_POLICIES = "All policies (compare)"
 EXAMPLES = [  # (button label, full question)
     ("⏳ Pre-existing diseases", "What is the waiting period for pre-existing diseases?"),
     ("🏥 Room rent limit", "What is the room rent limit?"),
@@ -129,12 +129,19 @@ def show_answer(text):
         st.markdown(with_citation_badges(text), unsafe_allow_html=True)
 
 
-def best_snippet(chunk_text, question, answer_text, length=320):
-    """Pick the part of a chunk that best matches the question and answer."""
-    keywords = {w for w in re.findall(r"\w+", (question + " " + answer_text).lower()) if len(w) > 3}
-    sentences = re.split(r"(?<=[.:;])\s+", chunk_text)
-    scores = [len(keywords & set(re.findall(r"\w+", s.lower()))) for s in sentences]
-    start = scores.index(max(scores)) if scores else 0
+@st.cache_data(show_spinner=False)
+def best_snippet(chunk_text, question, length=320):
+    """Show the part of a chunk whose MEANING is closest to the question.
+
+    Uses the same embedding model as retrieval, so "waiting period for
+    pre-existing diseases" lands on the PED clause, not on another clause that
+    merely repeats the words "waiting period".
+    """
+    sentences = [s for s in re.split(r"(?<=[.:;])\s+", chunk_text) if s.strip()] or [chunk_text]
+    model = get_retriever().model
+    q = model.encode(QUERY_PREFIX + question, normalize_embeddings=True)
+    s = model.encode(sentences, normalize_embeddings=True)
+    start = int((s @ q).argmax())
     snippet = " ".join(sentences[start:])
     prefix = "…" if start else ""
     suffix = "…" if len(snippet) > length else ""
@@ -142,7 +149,7 @@ def best_snippet(chunk_text, question, answer_text, length=320):
 
 
 def source_card(i, chunk, question, text, cited):
-    snippet = html.escape(best_snippet(chunk["text"], question, text))
+    snippet = html.escape(best_snippet(chunk["text"], question))
     page_label = chunk["printed_page"] or "cover"
     st.markdown(
         f'<div class="source-card {"" if cited else "uncited"}">'
@@ -156,10 +163,25 @@ def source_card(i, chunk, question, text, cited):
 def show_sources(question, text, chunks):
     numbers = range(1, len(chunks) + 1)
     cited = [i for i in numbers if f"[{i}]" in text]
-    uncited = [i for i in numbers if i not in cited]
+    plans = list(dict.fromkeys(c["plan"] for c in chunks))   # unique, in retrieval order
 
-    if cited:
-        st.markdown(f"**Sources** · {len(cited)} of {len(chunks)} retrieved clauses cited")
+    if len(plans) == 1:
+        if cited:
+            st.markdown(f"**Sources** · {len(cited)} of {len(chunks)} retrieved clauses cited")
+        source_list(question, text, chunks, list(numbers), cited)
+        return
+
+    # Several policies: one tab of sources per policy
+    st.markdown(f"**Sources** · {len(cited)} of {len(chunks)} retrieved clauses cited, "
+                f"across {len(plans)} policies")
+    for tab, plan in zip(st.tabs(plans), plans):
+        with tab:
+            mine = [i for i in numbers if chunks[i - 1]["plan"] == plan]
+            source_list(question, text, chunks, mine, [i for i in mine if i in cited])
+
+
+def source_list(question, text, chunks, numbers, cited):
+    uncited = [i for i in numbers if i not in cited]
     for i in cited:
         c = chunks[i - 1]
         source_card(i, c, question, text, cited=True)
@@ -187,6 +209,8 @@ retriever = get_retriever()
 with st.sidebar:
     st.markdown("### 📚 Policy library")
     plan = st.selectbox("Search in", [ALL_POLICIES] + retriever.plans)
+    if plan == ALL_POLICIES and len(retriever.plans) > 1:
+        st.caption("Each policy is answered separately, so you can compare them side by side.")
     pages = {(c["chunk_id"].rsplit("-", 2)[0], c["page"]) for c in retriever.chunks}
     a, b, c = st.columns(3)
     a.metric("Policies", len(retriever.plans))
@@ -263,7 +287,7 @@ if question:
         timing = {
             "retrieve": t1 - t0,
             "generate": time.perf_counter() - t1,
-            "scope": "all policies" if selected is None else selected,
+            "scope": f"all {len(retriever.plans)} policies" if selected is None else selected,
         }
         with placeholder.container():
             show_answer(text)

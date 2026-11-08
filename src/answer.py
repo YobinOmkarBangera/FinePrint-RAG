@@ -27,31 +27,49 @@ def clean_citations(text):
     return re.sub(r"【(\d+)[^】]*】", r"[\1]", text)
 
 
-def build_messages(question, chunks):
-    context = "\n\n".join(
-        f"[{i}] ({c['plan']}, page {c['printed_page']})\n{c['text']}"
-        for i, c in enumerate(chunks, start=1)
-    )
+PER_POLICY_INSTRUCTIONS = f"""The excerpts come from several different policies.
+Answer separately for EACH policy, in the order given, under a heading "### <policy name>".
+Use only that policy's excerpts under its heading; never mix facts between policies.
+If a policy's excerpts don't answer the question, write "{NOT_COVERED}" under its heading.
+Finish with one short line starting "**In short:**" that compares the policies."""
+
+
+def retrieve(question, retriever, k=5, plan=None):
+    """Return (chunks, per_policy). With no plan chosen, take the best clauses from each policy."""
+    if plan is None and len(retriever.plans) > 1:
+        return retriever.search_each_plan(question, k=3), True
+    return retriever.search(question, k=k, plan=plan), False
+
+
+def build_messages(question, chunks, per_policy=False):
+    parts, current_plan = [], None
+    for i, c in enumerate(chunks, start=1):
+        if per_policy and c["plan"] != current_plan:
+            current_plan = c["plan"]
+            parts.append(f"=== Policy: {current_plan} ===")
+        parts.append(f"[{i}] ({c['plan']}, page {c['printed_page']})\n{c['text']}")
+    context = "\n\n".join(parts)
+    instructions = f"\n\n{PER_POLICY_INSTRUCTIONS}" if per_policy else ""
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": f"Policy excerpts:\n\n{context}\n\nQuestion: {question}"},
+        {"role": "user", "content": f"Policy excerpts:\n\n{context}\n\nQuestion: {question}{instructions}"},
     ]
 
 
 def answer(question, retriever, k=5, plan=None):
     """Return (answer_text, chunks) in one go."""
-    chunks = retriever.search(question, k=k, plan=plan)
+    chunks, per_policy = retrieve(question, retriever, k=k, plan=plan)
     response = client.chat.completions.create(
-        model=MODEL, temperature=0, messages=build_messages(question, chunks)
+        model=MODEL, temperature=0, messages=build_messages(question, chunks, per_policy)
     )
     return clean_citations(response.choices[0].message.content), chunks
 
 
 def stream_answer(question, retriever, k=5, plan=None):
     """Return (chunks, generator); the generator yields the answer piece by piece."""
-    chunks = retriever.search(question, k=k, plan=plan)
+    chunks, per_policy = retrieve(question, retriever, k=k, plan=plan)
     stream = client.chat.completions.create(
-        model=MODEL, temperature=0, messages=build_messages(question, chunks), stream=True
+        model=MODEL, temperature=0, messages=build_messages(question, chunks, per_policy), stream=True
     )
 
     def pieces():
@@ -68,4 +86,4 @@ if __name__ == "__main__":
     text, chunks = answer(question, Retriever())
     print(text, "\n\nSources:")
     for i, c in enumerate(chunks, start=1):
-        print(f"[{i}] page {c['printed_page']}")
+        print(f"[{i}] {c['plan']}, page {c['printed_page']}")
