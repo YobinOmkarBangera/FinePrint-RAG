@@ -25,20 +25,29 @@ class Retriever:
         with CHUNKS_FILE.open(encoding="utf-8") as f:
             self.chunks = [json.loads(line) for line in f]
         self.by_id = {c["chunk_id"]: c for c in self.chunks}
+        self.plans = sorted({c["plan"] for c in self.chunks})
         self.bm25 = BM25Okapi([tokenize(c["text"]) for c in self.chunks])
         self.model = SentenceTransformer(MODEL_NAME)
         self.collection = chromadb.PersistentClient(path=str(INDEX_DIR)).get_collection("policies")
 
-    def search(self, question, k=5, pool=20):
-        pool = min(pool, len(self.chunks))
+    def search(self, question, k=5, pool=20, plan=None):
+        """Return the k best chunks. Pass plan="..." to search only one policy."""
+        candidates = [i for i, c in enumerate(self.chunks) if plan is None or c["plan"] == plan]
+        if not candidates:
+            return []
+        pool = min(pool, len(candidates))
 
-        # 1. Meaning search: closest embeddings
+        # 1. Meaning search: closest embeddings (optionally only within one plan)
         q = self.model.encode(QUERY_PREFIX + question, normalize_embeddings=True)
-        vector_ids = self.collection.query(query_embeddings=[q.tolist()], n_results=pool)["ids"][0]
+        vector_ids = self.collection.query(
+            query_embeddings=[q.tolist()],
+            n_results=pool,
+            where={"plan": plan} if plan else None,
+        )["ids"][0]
 
-        # 2. Keyword search: BM25 scores for every chunk, keep the best `pool`
+        # 2. Keyword search: BM25 scores for the candidate chunks, keep the best `pool`
         scores = self.bm25.get_scores(tokenize(question))
-        best = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:pool]
+        best = sorted(candidates, key=lambda i: scores[i], reverse=True)[:pool]
         keyword_ids = [self.chunks[i]["chunk_id"] for i in best]
 
         # 3. Reciprocal rank fusion: being near the top of either list scores well
