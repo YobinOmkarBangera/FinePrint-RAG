@@ -1,22 +1,31 @@
-question,expected_page
-What is the waiting period for pre-existing diseases?,26
-Is AYUSH treatment covered?,9
-What is the waiting period for cataract surgery?,27
-Are maternity expenses covered?,13|30
-How long do I have to wait before delivery expenses are covered?,13
-How many days of expenses before hospitalisation are covered?,9|45
-How many days after discharge are medical expenses covered?,9|45
-Does the policy pay for a road ambulance?,9
-Is the sum insured restored after I use it up?,12
-Do I get a free health check-up?,16
-What is the free look period?,37
-Are illnesses in the first 30 days of the policy covered?,28
-What is the room rent limit?,8
-Are the organ donor's hospital expenses covered?,10
-How can I cancel my policy and get a refund?,35
-How much is paid per day if I stay in a shared room?,15
-Is treatment of a newborn baby covered?,15
-Is balloon sinuplasty covered?,9
-What is the claim settlement ratio of the insurer?,
-Does this policy cover damage to my car?,
-Is my pet dog covered under this policy?,
+question,plan,expected_page
+What is the waiting period for pre-existing diseases?,Star Health Assure,26
+Is AYUSH treatment covered?,Star Health Assure,9
+What is the waiting period for cataract surgery?,Star Health Assure,27
+Are maternity expenses covered?,Star Health Assure,13|30
+How long do I have to wait before delivery expenses are covered?,Star Health Assure,13
+How many days of expenses before hospitalisation are covered?,Star Health Assure,9|45
+How many days after discharge are medical expenses covered?,Star Health Assure,9|45
+Does the policy pay for a road ambulance?,Star Health Assure,9
+Is the sum insured restored after I use it up?,Star Health Assure,12
+Do I get a free health check-up?,Star Health Assure,16
+What is the free look period?,Star Health Assure,37
+Are illnesses in the first 30 days of the policy covered?,Star Health Assure,28
+What is the room rent limit?,Star Health Assure,8
+Are the organ donor's hospital expenses covered?,Star Health Assure,10
+How can I cancel my policy and get a refund?,Star Health Assure,35
+How much is paid per day if I stay in a shared room?,Star Health Assure,15
+Is treatment of a newborn baby covered?,Star Health Assure,15
+Is balloon sinuplasty covered?,Star Health Assure,9
+What is the waiting period for pre-existing diseases?,Optima Secure,17
+What is the waiting period for cataract surgery?,Optima Secure,17|18
+What is the free look period?,Optima Secure,21
+What is the waiting period for pre-existing diseases?,Elevate,88
+What is the waiting period for cataract surgery?,Elevate,88|89
+What is the free look period?,Elevate,95
+What is the waiting period for pre-existing diseases?,ReAssure 2.0,14
+What is the waiting period for cataract surgery?,ReAssure 2.0,15
+What is the free look period?,ReAssure 2.0,19
+What is the claim settlement ratio of the insurer?,Star Health Assure,
+Does this policy cover damage to my car?,Star Health Assure,
+Is my pet dog covered under this policy?,Star Health Assure,

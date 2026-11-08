@@ -20,33 +20,50 @@ def parse_pages(value, line_number):
         )
 
 
-def load_questions():
+def load_questions(known_plans):
     with EVAL_FILE.open(encoding="utf-8-sig") as f:
+        rows = []
         # start=2 because line 1 of the file is the header row
-        return [
-            (row["question"].strip(), parse_pages(row["expected_page"], line_number))
-            for line_number, row in enumerate(csv.DictReader(f), start=2)
-            if row["question"].strip()
-        ]
+        for line_number, row in enumerate(csv.DictReader(f), start=2):
+            if not row["question"].strip():
+                continue
+            plan = row["plan"].strip()
+            if plan not in known_plans:
+                raise SystemExit(
+                    f'{EVAL_FILE.name} line {line_number}: unknown plan "{plan}". '
+                    f"Use one of: {', '.join(known_plans)}"
+                )
+            rows.append((row["question"].strip(), plan, parse_pages(row["expected_page"], line_number)))
+        return rows
+
+
+def is_hit(chunks, plan, expected):
+    """A hit if any retrieved chunk is from the right plan AND on a correct page."""
+    return any(c["plan"] == plan and c["printed_page"] in expected for c in chunks)
 
 
 def main(k=5):
-    questions = load_questions()
-    answerable = [(q, pages) for q, pages in questions if pages]
+    retriever = Retriever()
+    questions = load_questions(retriever.plans)
+    answerable = [q for q in questions if q[2]]
     if not answerable:
         raise SystemExit(f"No questions with an expected_page in {EVAL_FILE.name}")
 
-    retriever = Retriever()
-    hits = 0
-    for question, expected in answerable:
-        got = [c["printed_page"] for c in retriever.search(question, k=k)]
-        found = bool(expected & set(got))   # a hit if ANY correct page was retrieved
-        hits += found
-        expected_text = "|".join(str(p) for p in sorted(expected))
-        print(f"{'HIT ' if found else 'MISS'}  expected p{expected_text:<6} got {got}  {question}")
+    hits_filtered = hits_all = 0
+    print(f"{'plan filter':<12}{'all plans':<11}question")
+    for question, plan, expected in answerable:
+        # 1. Like the app with a policy picked in the sidebar
+        filtered = is_hit(retriever.search(question, k=k, plan=plan), plan, expected)
+        # 2. Like the app on "All policies": must also pick the right policy
+        everywhere = is_hit(retriever.search(question, k=k), plan, expected)
+        hits_filtered += filtered
+        hits_all += everywhere
+        print(f"{'HIT' if filtered else 'MISS':<12}{'HIT' if everywhere else 'MISS':<11}[{plan}] {question}")
 
-    skipped = len(questions) - len(answerable)
-    print(f"\nHit rate @{k}: {hits}/{len(answerable)} = {hits / len(answerable):.0%}")
+    n = len(answerable)
+    print(f"\nHit rate @{k}, searching only the question's policy: {hits_filtered}/{n} = {hits_filtered / n:.0%}")
+    print(f"Hit rate @{k}, searching all policies:              {hits_all}/{n} = {hits_all / n:.0%}")
+    skipped = len(questions) - n
     if skipped:
         print(f"({skipped} questions with no expected page were skipped; use them to test answer.py)")
 

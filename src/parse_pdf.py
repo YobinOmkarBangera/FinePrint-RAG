@@ -22,10 +22,25 @@ def clean_text(text):
     return text.strip()                      # remove spaces at the start and end
 
 
-def find_printed_page(text):
-    """Return the page number printed in the footer (e.g. 12 from "12 / 46"), or None."""
-    match = PRINTED_PAGE.search(text)
-    return int(match.group(1)) if match else None
+def find_printed_page(text, pdf_page):
+    """Return the page number printed on the page, or None if there isn't one.
+
+    Looks for a footer like "12 / 46" first, then for a bare number such as "6"
+    in the first or last few lines. A number only counts if it is close to the
+    PDF page number, so table values like "100/ 200" or clause numbers like "21"
+    aren't mistaken for it.
+    """
+    def close(n):
+        return abs(n - pdf_page) <= 3
+
+    for match in PRINTED_PAGE.finditer(text):
+        if close(int(match.group(1))):
+            return int(match.group(1))
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for line in lines[:3] + lines[-3:]:
+        if line.isdigit() and close(int(line)):
+            return int(line)
+    return None
 
 
 def extract_pages(pdf_path):
@@ -42,10 +57,14 @@ def extract_pages(pdf_path):
             if text:                         # skip empty pages
                 pages.append({
                     "page": page_number,
-                    "printed_page": find_printed_page(raw),
+                    "printed_page": find_printed_page(raw, page_number),
                     "text": text,
                 })
         total = len(doc)
+    # Some PDFs print no page numbers at all; then the PDF viewer's number is what readers use
+    if sum(p["printed_page"] is not None for p in pages) < len(pages) / 2:
+        for p in pages:
+            p["printed_page"] = p["page"]
     if total and len(pages) < total / 2:
         print(f"Warning: {pdf_path.name} has text on only {len(pages)} of {total} pages. "
               "It may be a scanned PDF that needs OCR.")
