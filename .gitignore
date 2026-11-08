@@ -225,3 +225,4 @@ experiments/
 # Data
 data/raw_pdfs/
 data/processed/
+data/index/
