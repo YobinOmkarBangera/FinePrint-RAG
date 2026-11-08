@@ -145,7 +145,6 @@ FinePrint-RAG/
 - **The evaluation set is small and was written by the author** with the PDFs open. Questions from real users would be phrased differently.
 - **Scanned PDFs aren't supported.** Text-based PDFs only; the parser warns when a PDF looks scanned, but there's no OCR.
 - **Chunks don't cross page boundaries.** This keeps page citations exact, but a clause that continues onto the next page is split in two.
-- **Not deployed yet.** A hosted demo on Streamlit Community Cloud is planned.
 
 ## Tech stack
 
